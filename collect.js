@@ -23,7 +23,7 @@ if (!API_KEY) {
 // Ako overit/doladit: otvor Google Maps, klikni presne na Slanecku,
 // skopiruj suradnice a vloz ich do CENTER. Offsety necha tak.
 // ---------------------------------------------------------------------------
-const CENTER = { lat: 48.6832, lon: 21.2935 };
+const CENTER = { lat: 48.6824, lon: 21.2904 };
 const OFFSET = { lat: 0.00013, lon: 0.0002 }; // cca 15 m kolmo od osi
 
 const POINTS = {
