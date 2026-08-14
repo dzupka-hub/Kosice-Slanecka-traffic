@@ -1,11 +1,11 @@
 {
-  "t": "2026-08-14T06:59:07.954Z",
+  "t": "2026-08-14T08:10:47.567Z",
   "toCity": {
-    "speed": 36,
+    "speed": 48,
     "freeFlow": 48,
-    "travelTime": 42,
+    "travelTime": 31,
     "freeFlowTime": 31,
-    "confidence": 0.99,
+    "confidence": 1,
     "closed": false
   },
   "toKrasna": {
