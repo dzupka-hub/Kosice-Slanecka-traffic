@@ -21,8 +21,13 @@
   .wrap{max-width:980px;margin:0 auto;padding:28px 20px 64px}
 
   header{margin-bottom:24px}
-  .eyebrow{font-family:'Saira Condensed';font-weight:600;letter-spacing:.22em;
-    font-size:.72rem;color:var(--text-2);text-transform:uppercase}
+  .hlava-vrch{display:flex;align-items:flex-start;gap:18px}
+  .eyebrow{font-family:'Saira Condensed';font-weight:600;letter-spacing:.16em;
+    font-size:.72rem;color:var(--text-2);text-transform:uppercase;line-height:1.5;max-width:70%}
+  .hodiny{margin-left:auto;text-align:right;flex-shrink:0}
+  .hodiny b{font-family:'Saira Condensed';font-weight:700;font-size:1.7rem;line-height:1;
+    display:block;font-variant-numeric:tabular-nums;letter-spacing:.02em}
+  .hodiny span{font-size:.78rem;color:var(--text-2);display:block;margin-top:2px}
   h1{font-family:'Saira Condensed';font-weight:700;font-size:clamp(2.4rem,6vw,3.4rem);
     line-height:1;text-transform:uppercase;margin:.2rem 0 .45rem}
   .stav-riadok{display:flex;flex-wrap:wrap;gap:10px 18px;align-items:center;
@@ -103,7 +108,10 @@
 <div class="wrap">
 
   <header>
-    <div class="eyebrow">Cesta II/552 · úsek Krásna — most · 3,65 km</div>
+    <div class="hlava-vrch">
+      <div class="eyebrow">Cesta II/552 — úsek Krásna (križovatka Lacková/Ukrajinská) — Jazero (most VSS)</div>
+      <div class="hodiny"><b id="hodiny-cas">—</b><span id="hodiny-datum"></span></div>
+    </div>
     <h1>Slanecká</h1>
     <div class="stav-riadok">
       <span class="pulz"><i></i><span id="posledne">Načítavam…</span></span>
@@ -174,11 +182,7 @@
   </section>
 
   <footer>
-    Meraný je čas prejazdu úsekom Krásna — most (3,65 km) v oboch smeroch, vrátane zdržania na križovatkách.
-    Špička každých 10 minút, mimo špičky hodinovo, víkend každé 2 hodiny.<br>
-    Zdroj: TomTom Routing API · Dáta a kód:
-    <a href="https://github.com/dzupka-hub/Kosice-Slanecka-traffic" rel="noopener">github.com/dzupka-hub/Kosice-Slanecka-traffic</a>
-    · <a href="data/merania.csv">stiahnuť CSV</a>
+    Zdroj: TomTom Routing API
   </footer>
 </div>
 
@@ -380,7 +384,16 @@
       return;
     }
     const dni = ["Po","Ut","St","Št","Pi","So","Ne"];
-    const h0=5, h1=22, cw=44, ch=30, Lp=40, Tp=26;
+    // datumy aktualneho tyzdna (pondelok az nedela)
+    const dnes = new Date();
+    const wdDnes = casti(dnes).wd;              // 0 = pondelok
+    const datumy = [];
+    for (let i=0;i<7;i++){
+      const d = new Date(dnes.getTime() + (i - wdDnes)*86400000);
+      const p = new Intl.DateTimeFormat("sk-SK",{timeZone:TZ,day:"numeric",month:"numeric"}).format(d);
+      datumy.push(p.replace(/\s/g,""));
+    }
+    const h0=5, h1=22, cw=44, ch=30, Lp=72, Tp=26;
     const W = Lp + (h1-h0+1)*cw + 8, H = Tp + 7*ch + 6;
     const farba = p => p==null ? "#1F2329"
       : p>=.85 ? "#2E7D46" : p>=.60 ? "#8A6A1F" : "#8F3430";
@@ -388,7 +401,11 @@
     for (let h=h0;h<=h1;h++)
       s += `<text x="${Lp+(h-h0)*cw+cw/2}" y="16" fill="#9AA2AD" font-size="11" text-anchor="middle">${h}</text>`;
     for (let wd=0;wd<7;wd++){
-      s += `<text x="${Lp-10}" y="${Tp+wd*ch+ch/2+4}" fill="#9AA2AD" font-size="12" text-anchor="end">${dni[wd]}</text>`;
+      const jeDnes = wd === wdDnes;
+      s += `<text x="${Lp-10}" y="${Tp+wd*ch+ch/2+4}" text-anchor="end" font-size="12"
+              fill="${jeDnes ? "#E8E4D8" : "#9AA2AD"}" font-weight="${jeDnes ? 600 : 400}">` +
+           `<tspan>${dni[wd]}</tspan>` +
+           `<tspan fill="${jeDnes ? "#E8E4D8" : "#6E7681"}" font-size="11"> ${datumy[wd]}</tspan></text>`;
       for (let h=h0;h<=h1;h++){
         const a = agg[wd+"-"+h];
         const p = a ? a.sum/a.n : null;
@@ -427,6 +444,16 @@
     for (const x of $("#smer-prepinac").children) x.setAttribute("aria-pressed", x===b);
     vykresliHeat();
   });
+
+  // ------------------------- hodiny -------------------------
+  function tikni(){
+    const t = new Date();
+    $("#hodiny-cas").textContent = fmtCas.format(t);
+    $("#hodiny-datum").textContent = new Intl.DateTimeFormat("sk-SK",
+      {timeZone:TZ, weekday:"long", day:"numeric", month:"long", year:"numeric"}).format(t);
+  }
+  tikni();
+  setInterval(tikni, 20*1000);
 
   nacitaj();
   setInterval(nacitaj, 10*60*1000);
