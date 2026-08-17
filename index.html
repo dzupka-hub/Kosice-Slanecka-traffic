@@ -1,421 +1,46 @@
-<!DOCTYPE html>
-<html lang="sk">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Slanecká · doprava naživo</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Saira+Condensed:wght@500;600;700&family=Saira:wght@400;500;600&display=swap" rel="stylesheet">
-<style>
-  :root{
-    --asfalt:#131518;
-    --asfalt-2:#1B1E23;
-    --asfalt-3:#242830;
-    --ciara:#E8E4D8;          /* lane marking */
-    --znacka:#0F5FB0;         /* SK road-sign blue */
-    --znacka-tmava:#0B4A8A;
-    --text:#EDEFF2;
-    --text-2:#9AA2AD;
-    --ok:#46C06A;
-    --pomaly:#E8B33C;
-    --kolona:#E5544D;
-    --uzavera:#8A93A0;
-    --radius:14px;
-    font-size:16px;
-  }
-  *{box-sizing:border-box;margin:0;padding:0}
-  html,body{background:var(--asfalt);color:var(--text);
-    font-family:'Saira',system-ui,-apple-system,'Segoe UI',sans-serif;
-    -webkit-font-smoothing:antialiased}
-  .wrap{max-width:980px;margin:0 auto;padding:28px 20px 64px}
+// OVERENIE + MERANIE - novy cielovy bod na Slaneckej.
+const API_KEY = process.env.TOMTOM_API_KEY;
+if (!API_KEY) { console.error("chyba TOMTOM_API_KEY"); process.exit(1); }
 
-  /* ---------- header ---------- */
-  header{margin-bottom:26px}
-  .eyebrow{font-family:'Saira Condensed';font-weight:600;letter-spacing:.22em;
-    font-size:.72rem;color:var(--text-2);text-transform:uppercase}
-  h1{font-family:'Saira Condensed';font-weight:700;font-size:clamp(2.4rem,6vw,3.4rem);
-    line-height:1;letter-spacing:.01em;text-transform:uppercase;margin:.2rem 0 .45rem}
-  .stav-riadok{display:flex;flex-wrap:wrap;gap:10px 18px;align-items:center;
-    font-size:.9rem;color:var(--text-2)}
-  .pulz{display:inline-flex;align-items:center;gap:7px}
-  .pulz i{width:8px;height:8px;border-radius:50%;background:var(--ok);display:inline-block}
-  @media (prefers-reduced-motion:no-preference){
-    .pulz i{animation:pulz 2.4s ease-in-out infinite}
-    @keyframes pulz{0%,100%{opacity:1}50%{opacity:.35}}
+const KRASNA = { lat: 48.668514, lon: 21.319647 };
+const MESTO  = { lat: 48.689768, lon: 21.280709 };   // <-- tvoj bod z mapy
+
+const bod = p => `${p.lat.toFixed(6)},${p.lon.toFixed(6)}`;
+const pauza = ms => new Promise(r => setTimeout(r, ms));
+
+async function trasa(od, kam, nazov) {
+  const url =
+    `https://api.tomtom.com/routing/1/calculateRoute/${bod(od)}:${bod(kam)}/json` +
+    `?traffic=true&travelMode=car&instructionsType=text` +
+    `&routeRepresentation=polyline&key=${API_KEY}`;
+  const r = await fetch(url);
+  if (!r.ok) throw new Error(`HTTP ${r.status}`);
+  const j = await r.json();
+  const route = j.routes[0];
+  const body = route.legs[0].points;
+
+  const vzorka = [];
+  const krok = (body.length - 1) / 7;
+  for (let i = 0; i < 8; i++) {
+    const p = body[Math.round(i * krok)];
+    vzorka.push(`${p.latitude.toFixed(5)},${p.longitude.toFixed(5)}`);
   }
 
-  /* ---------- direction signs + centre line ---------- */
-  .smery{display:grid;grid-template-columns:1fr 26px 1fr;gap:0;align-items:stretch;margin:8px 0 34px}
-  .stredova{position:relative}
-  .stredova::before{content:"";position:absolute;left:50%;top:6px;bottom:6px;width:4px;
-    transform:translateX(-50%);
-    background:repeating-linear-gradient(to bottom,var(--ciara) 0 26px,transparent 26px 46px);
-    border-radius:2px;opacity:.85}
-  .tabula{background:linear-gradient(160deg,var(--znacka),var(--znacka-tmava));
-    border:3px solid #fff;border-radius:var(--radius);padding:20px 22px 18px;
-    box-shadow:0 10px 30px rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.25);
-    display:flex;flex-direction:column;gap:10px;min-height:100%}
-  .tabula .smer-nazov{font-family:'Saira Condensed';font-weight:700;text-transform:uppercase;
-    font-size:1.35rem;letter-spacing:.04em;display:flex;align-items:center;gap:10px;line-height:1.1}
-  .tabula .sipka{font-size:1.5rem;line-height:1}
-  .rychlost{display:flex;align-items:baseline;gap:8px}
-  .rychlost b{font-family:'Saira Condensed';font-weight:700;font-size:3.6rem;line-height:.95;
-    font-variant-numeric:tabular-nums}
-  .rychlost span{font-size:.95rem;opacity:.85}
-  .volna{font-size:.85rem;opacity:.8}
-  .meter{height:10px;border-radius:6px;background:rgba(255,255,255,.22);overflow:hidden}
-  .meter i{display:block;height:100%;border-radius:6px;background:var(--ok);width:0;
-    transition:width .8s ease}
-  .stav-pill{align-self:flex-start;font-family:'Saira Condensed';font-weight:600;
-    text-transform:uppercase;letter-spacing:.08em;font-size:.82rem;
-    padding:4px 12px;border-radius:999px;background:rgba(0,0,0,.28)}
-  .zdrz{font-size:.85rem;opacity:.85;min-height:1.2em}
-
-  /* ---------- sections ---------- */
-  section{margin-top:38px}
-  .sekcia-hlava{display:flex;flex-wrap:wrap;align-items:baseline;gap:10px 16px;margin-bottom:14px}
-  h2{font-family:'Saira Condensed';font-weight:600;text-transform:uppercase;
-    letter-spacing:.06em;font-size:1.25rem}
-  .prepinace{display:flex;gap:6px;margin-left:auto}
-  .prepinace button{font-family:'Saira',sans-serif;font-size:.82rem;font-weight:500;
-    color:var(--text-2);background:var(--asfalt-2);border:1px solid var(--asfalt-3);
-    padding:5px 13px;border-radius:999px;cursor:pointer}
-  .prepinace button[aria-pressed="true"]{color:var(--asfalt);background:var(--ciara);border-color:var(--ciara)}
-  .prepinace button:focus-visible{outline:2px solid var(--ciara);outline-offset:2px}
-  .panel{background:var(--asfalt-2);border:1px solid var(--asfalt-3);border-radius:var(--radius);
-    padding:18px 16px 12px;overflow:hidden}
-  .prazdne{color:var(--text-2);font-size:.9rem;padding:26px 8px;text-align:center}
-  svg text{font-family:'Saira',sans-serif}
-
-  .legenda{display:flex;flex-wrap:wrap;gap:14px;margin-top:10px;font-size:.8rem;color:var(--text-2)}
-  .legenda span{display:inline-flex;align-items:center;gap:6px}
-  .legenda i{width:14px;height:3px;border-radius:2px;display:inline-block}
-
-  footer{margin-top:48px;padding-top:18px;border-top:1px dashed var(--asfalt-3);
-    font-size:.8rem;color:var(--text-2);line-height:1.7}
-  footer a{color:var(--text-2)}
-  .chyba{background:#3A2224;border:1px solid #5C2E31;color:#F0B9B6;border-radius:var(--radius);
-    padding:14px 16px;margin:14px 0;font-size:.9rem;display:none}
-  .chyba button{margin-left:10px;background:none;border:1px solid #F0B9B6;color:#F0B9B6;
-    border-radius:8px;padding:3px 12px;cursor:pointer;font-family:inherit}
-
-  @media (max-width:640px){
-    .smery{grid-template-columns:1fr;gap:22px}
-    .stredova{height:26px}
-    .stredova::before{left:6px;right:6px;top:50%;bottom:auto;width:auto;height:4px;
-      transform:translateY(-50%);
-      background:repeating-linear-gradient(to right,var(--ciara) 0 26px,transparent 26px 46px)}
-    .rychlost b{font-size:3rem}
-  }
-</style>
-</head>
-<body>
-<div class="wrap">
-
-  <header>
-    <div class="eyebrow">Cesta II/552 · Košice</div>
-    <h1>Slanecká</h1>
-    <div class="stav-riadok">
-      <span class="pulz"><i></i><span id="posledne">Načítavam…</span></span>
-      <span id="dalsie"></span>
-    </div>
-  </header>
-
-  <div class="chyba" id="chyba">
-    Dáta sa nepodarilo načítať. Skontroluj pripojenie.
-    <button id="znova">Skúsiť znova</button>
-  </div>
-
-  <div class="smery">
-    <div class="tabula" id="karta-toCity">
-      <div class="smer-nazov"><span class="sipka">◄</span> Do mesta</div>
-      <div class="rychlost"><b>—</b><span>km/h</span></div>
-      <div class="volna">voľná rýchlosť — km/h</div>
-      <div class="meter"><i></i></div>
-      <div class="zdrz"></div>
-      <span class="stav-pill">—</span>
-    </div>
-    <div class="stredova" aria-hidden="true"></div>
-    <div class="tabula" id="karta-toKrasna">
-      <div class="smer-nazov">Do Krásnej <span class="sipka">►</span></div>
-      <div class="rychlost"><b>—</b><span>km/h</span></div>
-      <div class="volna">voľná rýchlosť — km/h</div>
-      <div class="meter"><i></i></div>
-      <div class="zdrz"></div>
-      <span class="stav-pill">—</span>
-    </div>
-  </div>
-
-  <section>
-    <div class="sekcia-hlava">
-      <h2>Priebeh dňa</h2>
-      <div class="prepinace" id="den-prepinac" role="group" aria-label="Výber dňa">
-        <button aria-pressed="true" data-den="0">Dnes</button>
-        <button aria-pressed="false" data-den="1">Včera</button>
-      </div>
-    </div>
-    <div class="panel" id="graf-panel">
-      <div class="prazdne">Načítavam merania…</div>
-    </div>
-    <div class="legenda">
-      <span><i style="background:var(--ciara)"></i> do mesta</span>
-      <span><i style="background:var(--znacka);height:3px"></i> do Krásnej</span>
-      <span><i style="background:var(--asfalt-3);height:8px;width:14px"></i> voľná rýchlosť</span>
-    </div>
-  </section>
-
-  <section>
-    <div class="sekcia-hlava">
-      <h2>Týždenný profil špičiek</h2>
-      <div class="prepinace" id="smer-prepinac" role="group" aria-label="Výber smeru">
-        <button aria-pressed="true" data-smer="toCity">Do mesta</button>
-        <button aria-pressed="false" data-smer="toKrasna">Do Krásnej</button>
-      </div>
-    </div>
-    <div class="panel" id="heat-panel">
-      <div class="prazdne">Profil sa vykreslí, keď sa nazbiera aspoň niekoľko dní meraní.</div>
-    </div>
-    <div class="legenda">
-      <span><i style="background:var(--ok);height:10px;width:14px;border-radius:3px"></i> plynulá</span>
-      <span><i style="background:var(--pomaly);height:10px;width:14px;border-radius:3px"></i> spomalená</span>
-      <span><i style="background:var(--kolona);height:10px;width:14px;border-radius:3px"></i> kolóna</span>
-    </div>
-  </section>
-
-  <footer>
-    Merané v oboch smeroch medzi sídliskom Nad jazerom a Krásnou.
-    Ranná a poobedná špička každých 10 minút, mimo špičky hodinovo, víkend každé 2 hodiny.<br>
-    Zdroj rýchlostí: TomTom Traffic · Dáta a kód:
-    <a href="https://github.com/dzupka-hub/Kosice-Slanecka-traffic" rel="noopener">github.com/dzupka-hub/Kosice-Slanecka-traffic</a>
-  </footer>
-</div>
-
-<script>
-(() => {
-  const REPO = "dzupka-hub/Kosice-Slanecka-traffic";
-  const RAW  = `https://raw.githubusercontent.com/${REPO}/main/data/`;
-  const TZ   = "Europe/Bratislava";
-  const SMERY = ["toCity","toKrasna"];
-  const FARBY = { toCity:"#E8E4D8", toKrasna:"#3D8FE0" };
-
-  let vsetky = [];          // all valid measurements
-  let vybranyDen = 0;       // 0 = today, 1 = yesterday
-  let vybranySmer = "toCity";
-
-  const $ = s => document.querySelector(s);
-
-  // ---- time helpers (Bratislava local) ----
-  const fmtCas = new Intl.DateTimeFormat("sk-SK",{timeZone:TZ,hour:"2-digit",minute:"2-digit"});
-  const fmtDatum = new Intl.DateTimeFormat("sk-SK",{timeZone:TZ,day:"numeric",month:"numeric"});
-  const casti = d => {
-    const p = new Intl.DateTimeFormat("en-GB",{timeZone:TZ,year:"numeric",month:"2-digit",
-      day:"2-digit",hour:"2-digit",minute:"2-digit",weekday:"short",hour12:false})
-      .formatToParts(d).reduce((a,x)=>(a[x.type]=x.value,a),{});
-    const wd = {Mon:0,Tue:1,Wed:2,Thu:3,Fri:4,Sat:5,Sun:6}[p.weekday];
-    return { den:`${p.year}-${p.month}-${p.day}`, hodina:+p.hour,
-             minuty:+p.hour*60 + +p.minute, wd };
-  };
-
-  const platne = m => m && !m.error && !m.closed && m.freeFlow > 0;
-
-  function stav(pomer, closed){
-    if (closed) return {txt:"Uzávera", farba:"var(--uzavera)"};
-    if (pomer >= .85) return {txt:"Plynulá", farba:"var(--ok)"};
-    if (pomer >= .60) return {txt:"Spomalená", farba:"var(--pomaly)"};
-    return {txt:"Kolóna", farba:"var(--kolona)"};
+  const ulice = [];
+  for (const g of route.guidance?.instructions ?? []) {
+    const u = g.street || g.roadNumbers?.[0];
+    if (u && ulice[ulice.length - 1] !== u) ulice.push(u);
   }
 
-  async function nacitajJSON(subor){
-    // 1) relativna cesta (GitHub Pages - rovnaky server ako data)
-    // 2) zaloha: raw.githubusercontent.com (ked stranka bezi inde)
-    for (const url of ["data/" + subor, RAW + subor]){
-      try{
-        const r = await fetch(url + "?v=" + Date.now(), {cache:"no-store"});
-        if (r.ok) return await r.json();
-      }catch(e){}
-    }
-    throw new Error("nedostupne: " + subor);
-  }
+  console.log(`\n=== ${nazov} ===`);
+  console.log(`dlzka ${(route.summary.lengthInMeters / 1000).toFixed(2)} km, ` +
+              `cas ${(route.summary.travelTimeInSeconds / 60).toFixed(1)} min`);
+  console.log(`ulice: ${ulice.join(" → ")}`);
+  console.log(`MAPA: https://www.google.com/maps/dir/${vzorka.join("/")}`);
+}
 
-  function mesiaceDozadu(n){
-    const out = [], d = new Date();
-    for (let i=0;i<n;i++){
-      const p = new Intl.DateTimeFormat("en-GB",{timeZone:TZ,year:"numeric",month:"2-digit"})
-        .formatToParts(d).reduce((a,x)=>(a[x.type]=x.value,a),{});
-      out.push(`${p.year}-${p.month}`);
-      d.setUTCDate(0); // last day of previous month
-    }
-    return out;
-  }
-
-  // ---------- current-state cards ----------
-  function vykresliKarty(z){
-    $("#posledne").textContent = z
-      ? `posledné meranie ${fmtCas.format(new Date(z.t))}`
-      : "zatiaľ žiadne merania";
-    for (const smer of SMERY){
-      const k = document.getElementById("karta-"+smer);
-      const m = z && z[smer];
-      const b = k.querySelector(".rychlost b");
-      const volna = k.querySelector(".volna");
-      const bar = k.querySelector(".meter i");
-      const pill = k.querySelector(".stav-pill");
-      const zdrz = k.querySelector(".zdrz");
-      if (!m || m.error){ b.textContent="—"; pill.textContent="Bez dát"; continue; }
-      if (m.closed || m.freeFlow===0){
-        b.textContent="—"; volna.textContent="úsek uzavretý";
-        bar.style.width="0"; pill.textContent="Uzávera";
-        pill.style.background="rgba(0,0,0,.4)"; zdrz.textContent=""; continue;
-      }
-      const pomer = m.speed / m.freeFlow;
-      const s = stav(pomer, false);
-      b.textContent = m.speed;
-      volna.textContent = `voľná rýchlosť ${m.freeFlow} km/h`;
-      bar.style.width = Math.min(100, pomer*100) + "%";
-      bar.style.background = s.farba;
-      pill.textContent = s.txt;
-      const extra = Math.max(0, m.travelTime - m.freeFlowTime);
-      zdrz.textContent = extra >= 5 ? `+${extra} s zdržanie na úseku` : "bez zdržania";
-    }
-  }
-
-  // ---------- day chart ----------
-  function vykresliGraf(){
-    const panel = $("#graf-panel");
-    const teraz = casti(new Date());
-    const cielovy = (()=>{ // key of selected day
-      const d = new Date(); d.setUTCDate(d.getUTCDate()-vybranyDen);
-      return casti(d).den;
-    })();
-    const denne = vsetky.filter(m => casti(new Date(m.t)).den === cielovy);
-    const body = {toCity:[],toKrasna:[]};
-    let maxY = 0, freeflow = 0;
-    for (const m of denne){
-      const min = casti(new Date(m.t)).minuty;
-      for (const smer of SMERY){
-        if (platne(m[smer])){
-          body[smer].push({x:min, y:m[smer].speed});
-          maxY = Math.max(maxY, m[smer].speed, m[smer].freeFlow);
-          freeflow = Math.max(freeflow, m[smer].freeFlow);
-        }
-      }
-    }
-    if (!body.toCity.length && !body.toKrasna.length){
-      panel.innerHTML = `<div class="prazdne">${vybranyDen?"Včera":"Dnes"} zatiaľ nie sú merania.</div>`;
-      return;
-    }
-    const W=920,H=260,L=44,R=12,T=16,B=34;
-    const x0=5*60, x1=23*60;
-    const X = v => L + (v-x0)/(x1-x0)*(W-L-R);
-    const Y = v => T + (1 - v/(maxY*1.12))*(H-T-B);
-    let s = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Rýchlosť počas dňa" style="width:100%;height:auto;display:block">`;
-    // freeflow band
-    if (freeflow) s += `<line x1="${L}" y1="${Y(freeflow)}" x2="${W-R}" y2="${Y(freeflow)}"
-      stroke="#3A3F49" stroke-width="8" stroke-linecap="round" opacity=".55"/>`;
-    // grid + hour labels
-    for (let h=5;h<=23;h+=3){
-      s += `<line x1="${X(h*60)}" y1="${T}" x2="${X(h*60)}" y2="${H-B}" stroke="#242830" stroke-width="1"/>
-            <text x="${X(h*60)}" y="${H-12}" fill="#9AA2AD" font-size="12" text-anchor="middle">${h}:00</text>`;
-    }
-    for (const yv of [0, Math.round(maxY/2), maxY]){
-      if (yv===0) continue;
-      s += `<text x="${L-8}" y="${Y(yv)+4}" fill="#9AA2AD" font-size="12" text-anchor="end">${yv}</text>`;
-    }
-    // lines
-    for (const smer of SMERY){
-      const pts = body[smer].sort((a,b)=>a.x-b.x);
-      if (!pts.length) continue;
-      const d = pts.map((p,i)=>(i?"L":"M")+X(p.x).toFixed(1)+" "+Y(p.y).toFixed(1)).join(" ");
-      s += `<path d="${d}" fill="none" stroke="${FARBY[smer]}" stroke-width="2.5"
-             stroke-linejoin="round" stroke-linecap="round"/>`;
-      for (const p of pts)
-        s += `<circle cx="${X(p.x)}" cy="${Y(p.y)}" r="3" fill="${FARBY[smer]}"/>`;
-    }
-    s += `</svg>`;
-    panel.innerHTML = s;
-  }
-
-  // ---------- weekly heatmap ----------
-  function vykresliHeat(){
-    const panel = $("#heat-panel");
-    const agg = {}; // wd-hour -> {sum,n}
-    for (const m of vsetky){
-      const d = m[vybranySmer];
-      if (!platne(d)) continue;
-      const c = casti(new Date(m.t));
-      const k = c.wd + "-" + c.hodina;
-      (agg[k] ??= {sum:0,n:0});
-      agg[k].sum += d.speed / d.freeFlow;
-      agg[k].n++;
-    }
-    if (!Object.keys(agg).length){
-      panel.innerHTML = `<div class="prazdne">Profil sa vykreslí, keď sa nazbiera aspoň niekoľko dní meraní.</div>`;
-      return;
-    }
-    const dni = ["Po","Ut","St","Št","Pi","So","Ne"];
-    const h0=5, h1=22;
-    const cw=44, ch=30, Lp=40, Tp=26;
-    const W = Lp + (h1-h0+1)*cw + 8, H = Tp + 7*ch + 6;
-    const farba = p => p==null ? "#1F2329"
-      : p>=.85 ? "#2E7D46" : p>=.60 ? "#8A6A1F" : "#8F3430";
-    let s = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Týždenný profil"
-      style="width:100%;height:auto;display:block;min-width:640px">`;
-    for (let h=h0;h<=h1;h++)
-      s += `<text x="${Lp+(h-h0)*cw+cw/2}" y="16" fill="#9AA2AD" font-size="11" text-anchor="middle">${h}</text>`;
-    for (let wd=0;wd<7;wd++){
-      s += `<text x="${Lp-10}" y="${Tp+wd*ch+ch/2+4}" fill="#9AA2AD" font-size="12" text-anchor="end">${dni[wd]}</text>`;
-      for (let h=h0;h<=h1;h++){
-        const a = agg[wd+"-"+h];
-        const p = a ? a.sum/a.n : null;
-        const title = a ? `${dni[wd]} ${h}:00 · priem. ${Math.round(p*100)} % voľnej rýchlosti (${a.n} meraní)` : `${dni[wd]} ${h}:00 · bez dát`;
-        s += `<rect x="${Lp+(h-h0)*cw+2}" y="${Tp+wd*ch+2}" width="${cw-4}" height="${ch-4}"
-              rx="5" fill="${farba(p)}"><title>${title}</title></rect>`;
-      }
-    }
-    s += `</svg>`;
-    panel.innerHTML = `<div style="overflow-x:auto">${s}</div>`;
-  }
-
-  // ---------- load ----------
-  async function nacitaj(){
-    $("#chyba").style.display = "none";
-    try{
-      const latest = await nacitajJSON("latest.json").catch(()=>null);
-      const mesiace = mesiaceDozadu(3);
-      const casti2 = await Promise.all(
-        mesiace.map(m => nacitajJSON(m + ".json").catch(()=>[]))
-      );
-      vsetky = casti2.flat().sort((a,b)=> new Date(a.t)-new Date(b.t));
-      const posledny = latest || vsetky[vsetky.length-1] || null;
-      vykresliKarty(posledny);
-      vykresliGraf();
-      vykresliHeat();
-    }catch(e){
-      $("#chyba").style.display = "block";
-    }
-  }
-
-  // ---------- controls ----------
-  $("#den-prepinac").addEventListener("click", e=>{
-    const b = e.target.closest("button"); if(!b) return;
-    vybranyDen = +b.dataset.den;
-    for (const x of $("#den-prepinac").children)
-      x.setAttribute("aria-pressed", x===b);
-    vykresliGraf();
-  });
-  $("#smer-prepinac").addEventListener("click", e=>{
-    const b = e.target.closest("button"); if(!b) return;
-    vybranySmer = b.dataset.smer;
-    for (const x of $("#smer-prepinac").children)
-      x.setAttribute("aria-pressed", x===b);
-    vykresliHeat();
-  });
-  $("#znova").addEventListener("click", nacitaj);
-
-  nacitaj();
-  setInterval(nacitaj, 10*60*1000); // refresh every 10 min while open
+(async () => {
+  await trasa(KRASNA, MESTO, "DO MESTA (z Krasnej)");
+  await pauza(1500);
+  await trasa(MESTO, KRASNA, "DO KRASNEJ (z mesta)");
 })();
-</script>
-</body>
-</html>
