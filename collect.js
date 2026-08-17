@@ -17,10 +17,22 @@ const KANDIDATI = [0, 0.10, 0.20, 0.30].map(t => ({
 
 async function trasa(od, kam) {
   const url = `https://api.tomtom.com/routing/1/calculateRoute/${bod(od)}:${bod(kam)}/json`
-    + `?traffic=true&computeTravelTimeFor=all&travelMode=car&key=${API_KEY}`;
+    + `?traffic=true&computeTravelTimeFor=all&travelMode=car`
+    + `&instructionsType=text&key=${API_KEY}`;
   const r = await fetch(url);
   if (!r.ok) throw new Error(`HTTP ${r.status}`);
-  const s = (await r.json()).routes[0].summary;
+  const j = await r.json();
+  const s = j.routes[0].summary;
+
+  // ulice, cez ktore trasa vedie
+  const ulice = [];
+  for (const g of j.routes[0].guidance?.instructions ?? []) {
+    const u = g.street || g.roadNumbers?.[0];
+    if (u && ulice[ulice.length - 1] !== u) ulice.push(u);
+  }
+  console.log(`   trasa vedie: ${ulice.join(" → ")}`);
+  console.log(`   overit na mape: https://www.google.com/maps/dir/${bod(od)}/${bod(kam)}`);
+
   return { km: s.lengthInMeters / 1000, min: s.travelTimeInSeconds / 60 };
 }
 
