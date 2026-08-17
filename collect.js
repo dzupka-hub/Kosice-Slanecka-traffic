@@ -15,7 +15,7 @@ const KRASNA = { lat: 48.668514, lon: 21.319647 };
 const MESTO  = { lat: 48.689744, lon: 21.280667 };
 const STRED  = { lat: 48.6824, lon: 21.2904 };
 const OFFSET = { lat: 0.00013, lon: 0.0002 };
-const PRIEBEZNY_BOD = true;
+const PRIEBEZNY_BOD = false;
 
 const BODY = {
   toCity:   { lat: STRED.lat + OFFSET.lat, lon: STRED.lon + OFFSET.lon },
