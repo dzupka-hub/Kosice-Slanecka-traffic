@@ -1,5 +1,5 @@
 {
-  "t": "2026-08-17T07:13:31.742Z",
+  "t": "2026-08-17T07:47:29.947Z",
   "toCity": {
     "speed": 48,
     "freeFlow": 48,
@@ -8,9 +8,9 @@
     "confidence": 1,
     "closed": false,
     "trasa": {
-      "cas": 578,
+      "cas": 563,
       "casBezDopravy": 504,
-      "casObvykly": 600,
+      "casObvykly": 577,
       "zdrzanie": 0,
       "dlzka": 7670
     }
@@ -23,9 +23,9 @@
     "confidence": 1,
     "closed": false,
     "trasa": {
-      "cas": 335,
+      "cas": 321,
       "casBezDopravy": 285,
-      "casObvykly": 344,
+      "casObvykly": 329,
       "zdrzanie": 0,
       "dlzka": 3861
     }
