@@ -1,12 +1,12 @@
 {
-  "t": "2026-08-17T13:01:11.591Z",
+  "t": "2026-08-17T13:11:15.186Z",
   "toCity": {
     "speed": 48,
     "freeFlow": 48,
     "confidence": 1,
     "closed": false,
     "trasa": {
-      "cas": 302,
+      "cas": 307,
       "casBezDopravy": 273,
       "casObvykly": 310,
       "zdrzanie": 0,
@@ -19,10 +19,10 @@
     "confidence": 1,
     "closed": false,
     "trasa": {
-      "cas": 358,
+      "cas": 451,
       "casBezDopravy": 266,
-      "casObvykly": 367,
-      "zdrzanie": 0,
+      "casObvykly": 373,
+      "zdrzanie": 132,
       "dlzka": 3655
     }
   }
