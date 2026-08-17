@@ -1,56 +1,52 @@
-// KALIBRACIA - jednorazovy test, ktory bod v Krasnej je najlepsi.
+// KALIBRACIA 2 - hladame spravny cielovy bod v meste (smer DO MESTA).
 const API_KEY = process.env.TOMTOM_API_KEY;
 if (!API_KEY) { console.error("chyba TOMTOM_API_KEY"); process.exit(1); }
 
-const KRASNA = { lat: 48.668514, lon: 21.319647 };  // tvoj povodny bod
-const STRED  = { lat: 48.6824,   lon: 21.2904   };  // stred Slaneckej
+const KRASNA = { lat: 48.668514, lon: 21.319647 };
 const MESTO  = { lat: 48.689744, lon: 21.280667 };
 
 const bod = p => `${p.lat.toFixed(6)},${p.lon.toFixed(6)}`;
 
-// kandidati: postupne posuvame bod z Krasnej smerom na Slanecku
-const KANDIDATI = [0, 0.10, 0.20, 0.30].map(t => ({
-  popis: t === 0 ? "povodny bod" : `posun ${Math.round(t * 100)} % k stredu`,
-  lat: KRASNA.lat + (STRED.lat - KRASNA.lat) * t,
-  lon: KRASNA.lon + (STRED.lon - KRASNA.lon) * t,
-}));
+// posuvame cielovy bod kolmo na cestu (na druhy jazdny pruh)
+// a pripadne kusok spat po ceste
+const KANDIDATI = [
+  { popis: "povodny",            lat: MESTO.lat,           lon: MESTO.lon },
+  { popis: "kolmo na SV",        lat: MESTO.lat + 0.00016, lon: MESTO.lon + 0.00024 },
+  { popis: "kolmo na JZ",        lat: MESTO.lat - 0.00016, lon: MESTO.lon - 0.00024 },
+  { popis: "200 m spat po ceste", lat: MESTO.lat - 0.0012,  lon: MESTO.lon + 0.0018 },
+];
 
 async function trasa(od, kam) {
   const url = `https://api.tomtom.com/routing/1/calculateRoute/${bod(od)}:${bod(kam)}/json`
-    + `?traffic=true&computeTravelTimeFor=all&travelMode=car`
-    + `&instructionsType=text&key=${API_KEY}`;
+    + `?traffic=true&travelMode=car&instructionsType=text&key=${API_KEY}`;
   const r = await fetch(url);
   if (!r.ok) throw new Error(`HTTP ${r.status}`);
   const j = await r.json();
   const s = j.routes[0].summary;
-
-  // ulice, cez ktore trasa vedie
   const ulice = [];
   for (const g of j.routes[0].guidance?.instructions ?? []) {
     const u = g.street || g.roadNumbers?.[0];
     if (u && ulice[ulice.length - 1] !== u) ulice.push(u);
   }
-  console.log(`   trasa vedie: ${ulice.join(" → ")}`);
-  console.log(`   overit na mape: https://www.google.com/maps/dir/${bod(od)}/${bod(kam)}`);
-
-  return { km: s.lengthInMeters / 1000, min: s.travelTimeInSeconds / 60 };
+  return { km: s.lengthInMeters / 1000, min: s.travelTimeInSeconds / 60, ulice };
 }
 
 (async () => {
-  console.log("kandidat                | suradnice             | do mesta      | do Krasnej");
-  console.log("------------------------|-----------------------|---------------|---------------");
   for (const k of KANDIDATI) {
     try {
-      const tam = await trasa(k, MESTO);
-      const spat = await trasa(MESTO, k);
+      const tam = await trasa(KRASNA, k);
+      await new Promise(r => setTimeout(r, 1500));
+      const spat = await trasa(k, KRASNA);
       console.log(
-        `${k.popis.padEnd(23)} | ${bod(k).padEnd(21)} | ` +
-        `${tam.km.toFixed(2)} km ${tam.min.toFixed(1)} min | ` +
-        `${spat.km.toFixed(2)} km ${spat.min.toFixed(1)} min`
+        `\n${k.popis}  (${bod(k)})\n` +
+        `  DO MESTA:   ${tam.km.toFixed(2)} km / ${tam.min.toFixed(1)} min\n` +
+        `     ${tam.ulice.join(" → ")}\n` +
+        `  DO KRASNEJ: ${spat.km.toFixed(2)} km / ${spat.min.toFixed(1)} min\n` +
+        `     ${spat.ulice.join(" → ")}`
       );
     } catch (e) {
-      console.log(`${k.popis.padEnd(23)} | ${bod(k).padEnd(21)} | CHYBA: ${e.message}`);
+      console.log(`\n${k.popis}  (${bod(k)})  CHYBA: ${e.message}`);
     }
+    await new Promise(r => setTimeout(r, 1500));
   }
-  console.log("\nHladame kandidata, kde su obe dlzky podobne a co najmensie.");
 })();
