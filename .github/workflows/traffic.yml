@@ -1,44 +1,26 @@
-# Merania rychlosti na Slaneckej - harmonogram
-#
-# POZOR: cron v GitHub Actions bezi v UTC. Casy nizsie su nastavene pre letny
-# cas (CEST = UTC+2). V zime (CET = UTC+1) sa vsetko posunie o hodinu skor
-# v miestnom case - ak ti to bude vadit, v novembri posunieme hodiny o +1.
-#
-# Harmonogram (miestny letny cas):
-#   Po-Pia ranna spicka  05:30-09:00  -> kazdych 10 min
-#   Po-Pia poobedna      14:00-18:00  -> kazdych 10 min
-#   Po-Pia mimo spicky   09:00-14:00 a 18:00-23:00 -> kazdu hodinu
-#   So-Ne                06:00-20:00  -> kazde 2 hodiny
-#
-# Odhad spotreby: ~110 requestov/pracovny den, ~16/vikendovy den
-# (limit TomTom free = 2500/den, sme hlboko pod nim)
+# Merania rychlosti na Slaneckej.
+# Cron spusti beh raz za hodinu, sam beh potom podla dna a hodiny
+# rozhodne, kolko vzoriek odmeria - v spicke 6 (kazdych 10 min), inak 1.
 
 name: Meranie dopravy Slanecka
 
 on:
   schedule:
-    # ranna spicka (UTC 03:30-06:59, Po-Pia)
-    - cron: "30,40,50 3 * * 1-5"
-    - cron: "*/10 4-6 * * 1-5"
-    # poobedna spicka (UTC 12:00-15:59, Po-Pia)
-    - cron: "*/10 12-15 * * 1-5"
-    # mimo spicky - kazdu hodinu (UTC 7-11 a 16-20, Po-Pia)
-    - cron: "0 7-11,16-20 * * 1-5"
-    # vikend - kazde 2 hodiny (UTC 4-18)
-    - cron: "0 4-18/2 * * 0,6"
-  # tlacidlo na rucne spustenie (na otestovanie)
+    - cron: "0 3-20 * * 1-5"     # pracovne dni, kazdu hodinu (UTC)
+    - cron: "0 4-18/2 * * 0,6"   # vikend, kazde 2 hodiny (UTC)
   workflow_dispatch:
+    inputs:
+      vzorky:
+        description: "Pocet merani v tomto behu"
+        default: "1"
 
 permissions:
   contents: write
 
-concurrency:
-  group: traffic-collect
-  cancel-in-progress: false
-
 jobs:
   collect:
     runs-on: ubuntu-latest
+    timeout-minutes: 75
     steps:
       - uses: actions/checkout@v4
 
@@ -46,21 +28,40 @@ jobs:
         with:
           node-version: "20"
 
-      - name: Stiahni data z TomTom
+      - name: Meraj a zapisuj
         env:
           TOMTOM_API_KEY: ${{ secrets.TOMTOM_API_KEY }}
-        run: node collect.js
-
-      - name: Commitni namerane data
+          RUCNE: ${{ github.event.inputs.vzorky }}
         run: |
+          set -u
           git config user.name "traffic-bot"
           git config user.email "actions@github.com"
-          git add data/
-          git diff --cached --quiet && echo "Ziadne zmeny" && exit 0
-          git commit -m "meranie $(date -u +'%Y-%m-%d %H:%M') UTC"
-          # retry pre pripad, ze medzitym commitol iny beh
-          for i in 1 2 3; do
-            git push && exit 0
-            git pull --rebase
+
+          H=$(date -u +%-H)
+          D=$(date -u +%u)
+
+          if [ -n "${RUCNE:-}" ]; then
+            VZORKY="$RUCNE"
+          elif [ "$D" -le 5 ] && { [ "$H" -ge 3 ] && [ "$H" -le 7 ] || [ "$H" -ge 12 ] && [ "$H" -le 15 ]; }; then
+            VZORKY=6
+          else
+            VZORKY=1
+          fi
+
+          echo "Hodina ${H} UTC, den ${D} -> ${VZORKY} vzoriek"
+
+          for i in $(seq 1 "$VZORKY"); do
+            echo "--- vzorka ${i}/${VZORKY} ---"
+            node collect.js || echo "meranie zlyhalo, pokracujem"
+
+            git add data/
+            if ! git diff --cached --quiet; then
+              git commit -m "meranie $(date -u +'%Y-%m-%d %H:%M') UTC"
+              for pokus in 1 2 3; do
+                git push && break
+                git pull --rebase --autostash
+              done
+            fi
+
+            if [ "$i" -lt "$VZORKY" ]; then sleep 600; fi
           done
-          git push
