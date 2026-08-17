@@ -1,28 +1,30 @@
-// OVERENIE + MERANIE - novy cielovy bod na Slaneckej.
+// OVERENIE - priebezny bod na Slaneckej, aby trasa nepresla na Levocsku.
 const API_KEY = process.env.TOMTOM_API_KEY;
 if (!API_KEY) { console.error("chyba TOMTOM_API_KEY"); process.exit(1); }
 
-const KRASNA = { lat: 48.668514, lon: 21.319647 };
-const MESTO  = { lat: 48.689768, lon: 21.280709 };   // <-- tvoj bod z mapy
+const KRASNA   = { lat: 48.668514, lon: 21.319647 };
+const SLANECKA = { lat: 48.687711, lon: 21.283010 };   // priebezny bod
+const MESTO    = { lat: 48.689768, lon: 21.280709 };
 
 const bod = p => `${p.lat.toFixed(6)},${p.lon.toFixed(6)}`;
 const pauza = ms => new Promise(r => setTimeout(r, ms));
 
-async function trasa(od, kam, nazov) {
+async function trasa(body, nazov) {
+  const cesta = body.map(bod).join(":");
   const url =
-    `https://api.tomtom.com/routing/1/calculateRoute/${bod(od)}:${bod(kam)}/json` +
+    `https://api.tomtom.com/routing/1/calculateRoute/${cesta}/json` +
     `?traffic=true&travelMode=car&instructionsType=text` +
     `&routeRepresentation=polyline&key=${API_KEY}`;
   const r = await fetch(url);
   if (!r.ok) throw new Error(`HTTP ${r.status}`);
   const j = await r.json();
   const route = j.routes[0];
-  const body = route.legs[0].points;
 
+  const vsetky = route.legs.flatMap(l => l.points);
   const vzorka = [];
-  const krok = (body.length - 1) / 7;
-  for (let i = 0; i < 8; i++) {
-    const p = body[Math.round(i * krok)];
+  const krok = (vsetky.length - 1) / 9;
+  for (let i = 0; i < 10; i++) {
+    const p = vsetky[Math.round(i * krok)];
     vzorka.push(`${p.latitude.toFixed(5)},${p.longitude.toFixed(5)}`);
   }
 
@@ -40,7 +42,7 @@ async function trasa(od, kam, nazov) {
 }
 
 (async () => {
-  await trasa(KRASNA, MESTO, "DO MESTA (z Krasnej)");
+  await trasa([KRASNA, SLANECKA, MESTO], "DO MESTA (z Krasnej)");
   await pauza(1500);
-  await trasa(MESTO, KRASNA, "DO KRASNEJ (z mesta)");
+  await trasa([MESTO, SLANECKA, KRASNA], "DO KRASNEJ (z mesta)");
 })();
