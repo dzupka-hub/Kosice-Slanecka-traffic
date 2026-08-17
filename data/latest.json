@@ -1,5 +1,5 @@
 {
-  "t": "2026-08-17T06:20:15.818Z",
+  "t": "2026-08-17T06:23:05.888Z",
   "toCity": {
     "speed": 48,
     "freeFlow": 48,
@@ -8,11 +8,11 @@
     "confidence": 1,
     "closed": false,
     "trasa": {
-      "cas": 640,
-      "casBezDopravy": 495,
-      "casObvykly": 665,
+      "cas": 663,
+      "casBezDopravy": 504,
+      "casObvykly": 681,
       "zdrzanie": 0,
-      "dlzka": 6799
+      "dlzka": 7670
     }
   },
   "toKrasna": {
@@ -23,11 +23,11 @@
     "confidence": 1,
     "closed": false,
     "trasa": {
-      "cas": 737,
-      "casBezDopravy": 634,
-      "casObvykly": 753,
+      "cas": 373,
+      "casBezDopravy": 285,
+      "casObvykly": 381,
       "zdrzanie": 0,
-      "dlzka": 5614
+      "dlzka": 3861
     }
   }
 }
